@@ -64,6 +64,10 @@ public class Notification {
     @Column(name = "sent_at")
     private Instant sentAt;
 
+    /** Когда пользователь увидел уведомление; {@code null} — непрочитано. */
+    @Column(name = "read_at")
+    private Instant readAt;
+
     protected Notification() {
     }
 
@@ -123,6 +127,16 @@ public class Notification {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public Instant getReadAt() {
+        return readAt;
+    }
+
+    public void markRead(Instant now) {
+        if (readAt == null) {
+            readAt = now;
+        }
     }
 
     public Instant getSentAt() {

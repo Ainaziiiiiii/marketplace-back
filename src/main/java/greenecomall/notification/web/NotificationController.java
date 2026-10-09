@@ -95,11 +95,12 @@ public class NotificationController {
         }
     }
 
+    /** {@code readAt == null} — непрочитано (точка у колокольчика). */
     public record NotificationDto(UUID id, String channel, String templateCode, String text, String status,
-                                  Instant createdAt, Instant sentAt) {
+                                  Instant createdAt, Instant sentAt, Instant readAt) {
         static NotificationDto from(Notification n) {
             return new NotificationDto(n.getId(), n.getChannel().name(), n.getTemplateCode(), n.getRenderedText(),
-                    n.getStatus().name(), n.getCreatedAt(), n.getSentAt());
+                    n.getStatus().name(), n.getCreatedAt(), n.getSentAt(), n.getReadAt());
         }
     }
 
@@ -108,6 +109,32 @@ public class NotificationController {
         Page<Notification> page = notifications.findByUserIdOrderByCreatedAtDesc(Authz.require(principal).userId(), pageable);
         return PageResponse.of(page.getContent().stream().map(NotificationDto::from).toList(),
                 page.getNumber(), page.getSize(), page.getTotalElements());
+    }
+
+    public record UnreadCountDto(long unread) {
+    }
+
+    /** Счётчик у колокольчика в шапке («Уведомления, 2 новых»). */
+    @GetMapping("/notifications/unread-count")
+    public UnreadCountDto unreadCount(AuthPrincipal principal) {
+        return new UnreadCountDto(notifications.countByUserIdAndReadAtIsNull(Authz.require(principal).userId()));
+    }
+
+    /** @param ids какие отметить; пусто или {@code null} — все */
+    public record MarkReadRequest(List<UUID> ids) {
+    }
+
+    @PostMapping("/notifications/read")
+    @Transactional
+    public UnreadCountDto markRead(@RequestBody(required = false) MarkReadRequest request, AuthPrincipal principal) {
+        UUID userId = Authz.require(principal).userId();
+        Instant now = Instant.now();
+        if (request == null || request.ids() == null || request.ids().isEmpty()) {
+            notifications.markAllRead(userId, now);
+        } else {
+            notifications.markRead(userId, request.ids(), now);
+        }
+        return new UnreadCountDto(notifications.countByUserIdAndReadAtIsNull(userId));
     }
 
     // ─── служебное ─────────────────────────────────────────────────────────────
