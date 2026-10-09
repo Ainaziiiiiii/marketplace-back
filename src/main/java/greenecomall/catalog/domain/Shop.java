@@ -39,6 +39,22 @@ public class Shop {
     @Column(length = 20)
     private String phone;
 
+    /** «О магазине», до 300 знаков. */
+    @Column(length = 300)
+    private String description;
+
+    @Column(name = "logo_url", length = 500)
+    private String logoUrl;
+
+    /** Как пройти к точке забора: «Вход со двора · домофон 4». */
+    @Column(name = "pickup_instructions", length = 300)
+    private String pickupInstructions;
+
+    /** Координаты точки забора для карты курьера. */
+    private Double lat;
+
+    private Double lon;
+
     @Column(nullable = false, length = 200)
     private String name;
 
@@ -166,5 +182,43 @@ public class Shop {
 
     public String getPhone() {
         return phone;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public String getLogoUrl() {
+        return logoUrl;
+    }
+
+    public String getPickupInstructions() {
+        return pickupInstructions;
+    }
+
+    public Double getLat() {
+        return lat;
+    }
+
+    public Double getLon() {
+        return lon;
+    }
+
+    /** Карточка магазина: описание, как пройти, координаты точки забора ({@code null} — не менять). */
+    public void updateCard(String description, String pickupInstructions, Double lat, Double lon) {
+        if (description != null) {
+            this.description = description.isBlank() ? null : description.trim();
+        }
+        if (pickupInstructions != null) {
+            this.pickupInstructions = pickupInstructions.isBlank() ? null : pickupInstructions.trim();
+        }
+        if (lat != null && lon != null) {
+            this.lat = lat;
+            this.lon = lon;
+        }
+    }
+
+    public void changeLogo(String logoUrl) {
+        this.logoUrl = logoUrl;
     }
 }
