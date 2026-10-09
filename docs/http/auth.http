@@ -1,5 +1,5 @@
 ### Регистрация
-POST http://localhost:8081/auth/register
+POST http://localhost:8080/api/auth/register
 Content-Type: application/json
 
 {
@@ -8,8 +8,8 @@ Content-Type: application/json
   "locale": "ru"
 }
 
-### Код смотри в логе auth-service (LoggingOtpSender), подставь ниже
-POST http://localhost:8081/auth/otp/verify
+### Код смотри в логе приложения (LoggingOtpSender), подставь ниже
+POST http://localhost:8080/api/auth/otp/verify
 Content-Type: application/json
 
 {
@@ -19,11 +19,11 @@ Content-Type: application/json
 }
 
 ### Профиль (подставь accessToken из ответа выше)
-GET http://localhost:8081/auth/me
+GET http://localhost:8080/api/auth/me
 Authorization: Bearer PASTE_ACCESS_TOKEN
 
 ### Логин по паролю
-POST http://localhost:8081/auth/login
+POST http://localhost:8080/api/auth/login
 Content-Type: application/json
 
 {
@@ -32,7 +32,7 @@ Content-Type: application/json
 }
 
 ### Ротация refresh
-POST http://localhost:8081/auth/token/refresh
+POST http://localhost:8080/api/auth/token/refresh
 Content-Type: application/json
 
 {
@@ -40,7 +40,7 @@ Content-Type: application/json
 }
 
 ### Logout
-POST http://localhost:8081/auth/logout
+POST http://localhost:8080/api/auth/logout
 Content-Type: application/json
 
 {
@@ -48,26 +48,16 @@ Content-Type: application/json
 }
 
 ### JWKS
-GET http://localhost:8081/oauth2/jwks
+GET http://localhost:8080/api/oauth2/jwks
 
 ### 1. Получить SSO-токен от mock-mlm
 GET http://localhost:9100/sso/issue-token?mlm_user_id=U1&upline_id=U0&access_status=access_paid
 
 ### 2. Обменять на наш JWT (подставь token из ответа выше)
-POST http://localhost:8081/auth/sso/mlm
+POST http://localhost:8080/api/auth/sso/mlm
 Content-Type: application/json
 
 {
   "token": "PASTE_MLM_SSO_TOKEN"
 }
 
-### Служебное создание пользователя (для catalog/courier)
-POST http://localhost:8081/internal/auth/users
-Content-Type: application/json
-X-Internal-Token: local-dev-internal-token-change-me
-
-{
-  "email": "shop-owner@example.com",
-  "role": "CLIENT_EXTERNAL",
-  "status": "active"
-}

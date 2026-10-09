@@ -126,7 +126,7 @@
 
 ## 6. Контракт API (всё под `/api`, требует токен админа)
 
-### Магазины и товары (catalog-service)
+### Магазины и товары (модуль catalog)
 | Метод и путь | Комментарий |
 |---|---|
 | `GET /admin/shops?status=MODERATION\|ACTIVE\|SUSPENDED\|REJECTED\|DRAFT&page=&size=` | страница `Shop` |
@@ -162,7 +162,7 @@
 | `GET /admin/reviews?hidden=false&page=` | страница `{ id, productId, shopId, rating, text, shopReply, hidden, createdAt }` |
 | `POST /admin/reviews/{id}/hide` · `POST /admin/reviews/{id}/unhide` | → сам отзыв |
 
-### Заказы и промокоды (order-service)
+### Заказы и промокоды (модуль order)
 | Метод и путь | |
 |---|---|
 | `GET /admin/orders?status=&cityId=&clientId=&page=` | страница `AdminOrder` (с себестоимостью и комиссией) |
@@ -178,7 +178,7 @@ goodsAmountMinor, costAmountMinor, platformCommissionMinor, courierId, items: [{
 qty, costPriceMinor, salePriceMinor, markupPercentSnapshot }] }] }`.
 Статусы заказа: `CREATED, PAID, PARTIALLY_DELIVERED, COMPLETED, CANCELLED, PAYMENT_FAILED`.
 
-### Финансы (finance-service)
+### Финансы (модуль finance)
 | Метод и путь | |
 |---|---|
 | `GET /admin/payouts?status=REQUESTED\|QUEUED\|SENDING\|PAID\|FAILED\|APPROVED\|REJECTED&page=` | страница `Payout` |
@@ -197,7 +197,7 @@ processedAt, auto, attempts, lastError }` — `auto: true` значит авто
 `Refund = { id, paymentId, amountMinor, reason, status, providerRefundId, createdAt }`.
 `Wallet = { id, ownerType, ownerRef, currency, balanceMinor, heldMinor, updatedAt }`.
 
-### Курьеры (courier-service)
+### Курьеры (модуль courier)
 | Метод и путь | |
 |---|---|
 | `GET /admin/couriers?cityId=&moderation=PENDING\|APPROVED\|REJECTED&page=` | страница `Courier` |
@@ -208,7 +208,7 @@ processedAt, auto, attempts, lastError }` — `auto: true` значит авто
 `Courier = { id, userId, countryId, cityId, zoneIds, status: "ACTIVE"|"BUSY"|"OFFLINE",
 moderationStatus, rejectionReason, rating }`.
 
-### MLM (mlm-service)
+### MLM (модуль mlm)
 | Метод и путь | |
 |---|---|
 | `GET /admin/mlm/reports/summary` | `{ total, none, mustPurchase, active, expired, mlmRevenueMinor }` |
@@ -218,7 +218,7 @@ moderationStatus, rejectionReason, rating }`.
 | `GET /admin/mlm/sync/failed?page=` | `[{ id, type, status, attempts, nextAttemptAt, lastError, createdAt }]` |
 | `POST /admin/mlm/sync/{id}/retry` | 204 |
 
-### Уведомления (notification-service)
+### Уведомления (модуль notification)
 | Метод и путь | |
 |---|---|
 | `GET /admin/notification-templates` | `[{ id, code, channel: "PUSH"\|"SMS"\|"TELEGRAM", locale, subject, body }]` |

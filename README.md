@@ -3,54 +3,62 @@
 Мультивендорный B2B2C маркетплейс: магазины-партнёры, внешние и MLM-клиенты, курьеры,
 онлайн-оплата с распределением по кошелькам, гео-фильтрация каталога.
 
-**Стек:** Java 21, Spring Boot 4.1.1, Spring Data JPA, Kafka, PostgreSQL, Redis, Flyway,
-Docker, GitLab CI. Монорепозиторий, Maven multi-module.
+**Стек:** Java 21, Spring Boot 4.1.1, Spring Data JPA, PostgreSQL, Flyway, Docker.
+Одно приложение (модульный монолит), один порт, одна база.
 
 ## Структура
 
 ```
-common/            общий код: домен, контракты Kafka, безопасность, веб-слой
-services/          7 сервисов + api-gateway, каждый — самостоятельное Spring Boot приложение
-infra/             docker-compose (инфра и полный прогон), mock-mlm, init БД
-docs/              архитектура и задания
+src/main/java/greenecomall/
+  GreenEcoMallApplication   точка входа
+  config/                   общие бины, миграции по схемам, JPA-репозитории
+  common/                   общий код: домен, события и шина, безопасность, веб-слой
+  auth/ catalog/ order/ finance/ courier/ mlm/ notification/   модули
+src/main/resources/
+  application.yml           вся конфигурация
+  db/migration/<схема>/     миграции Flyway модуля
+infra/                      docker-compose (инфра и полный прогон), mock-mlm
+docs/                       архитектура и задания
 ```
 
-| Сервис | Порт | БД | Ответственность |
-|---|---|---|---|
-| api-gateway | 8080 | — | маршрутизация, валидация JWT, проброс identity |
-| auth-service | 8081 | auth | учётки, роли, JWT+refresh, OTP, SSO из MLM |
-| catalog-service | 8082 | catalog | магазины, товары, категории, гео, наценка, витрина |
-| order-service | 8083 | orders | корзина, заказы, suborders, статусы, промокоды |
-| finance-service | 8084 | finance | эквайринг, кошельки, ledger, выводы |
-| courier-service | 8085 | courier | курьеры, подбор, статусы доставки |
-| mlm-service | 8086 | mlm | MLM-аккаунты, активация, рефералы, интеграция с MLM-бэком |
-| notification-service | 8087 | notification | push/SMS/Telegram уведомления |
+| Модуль | Схема БД | Ответственность |
+|---|---|---|
+| auth | auth | учётки, роли, JWT+refresh, OTP, SSO из MLM |
+| catalog | catalog | магазины, товары, категории, гео, наценка, витрина |
+| order | orders | корзина, заказы, suborders, статусы, промокоды |
+| finance | finance | эквайринг, кошельки, ledger, выводы |
+| courier | courier | курьеры, подбор, статусы доставки |
+| mlm | mlm | MLM-аккаунты, активация, рефералы, интеграция с MLM-бэком |
+| notification | notification | push/SMS/Telegram уведомления |
+
+Всё API — на одном порту под `/api` (`http://localhost:8080/api/...`), healthcheck — `/api/actuator/health`.
+
+**Как модули общаются:**
+- синхронно — прямыми вызовами бинов соседнего модуля (каждый вызов в своей транзакции, как раньше по HTTP);
+- асинхронно — доменными событиями: модуль пишет событие в свою таблицу `outbox` в одной транзакции
+  с данными, `OutboxRelay` досылает его в `InProcessEventBus`, подписчики (`@TopicListener`) обрабатывают
+  каждый в своей транзакции, идемпотентно по `eventId`. Kafka не нужна.
 
 ## Локальный запуск
 
 ```bash
-# 1. инфраструктура
+# 1. инфраструктура: postgres:5432 (база gem), mailhog:8025, mock-mlm:9100
 docker compose -f infra/docker-compose.infra.yml up -d
-#    postgres:5432  kafka:9092  kafka-ui:8085  redis:6379  mailhog:8025  mock-mlm:9100
 
-# 2. сборка
-./mvnw -T1C -DskipTests clean package
-
-# 3. сервис из IDE или:
-./mvnw -pl services/auth-service spring-boot:run
+# 2. приложение из IDE (GreenEcoMallApplication) или:
+./mvnw spring-boot:run
 
 # всё в контейнерах:
-./mvnw -DskipTests spring-boot:build-image
-docker compose -f infra/docker-compose.yml up -d
+docker compose -f infra/docker-compose.yml up -d --build
 ```
+
+Схемы модулей и таблицы создаёт Flyway при старте. Первый админ — переменные `ADMIN_EMAIL`/`ADMIN_PASSWORD`.
+
+Тесты: `./mvnw test` (интеграционные `*IntegrationTest` поднимают Postgres через Testcontainers — нужен Docker).
 
 ## Документы
 
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — декомпозиция, схема БД, Kafka-события,
-  SSO-контракт с MLM, риски и решения по открытым вопросам, порядок реализации.
-- [docs/TASK-01-auth-service.md](docs/TASK-01-auth-service.md) — первое задание (auth-service).
-
-## Статус
-
-Скелет монорепозитория собран (`./mvnw compile` — зелёный). Бизнес-логика — по этапам из
-раздела 9 архитектуры, начиная с `auth-service`.
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — домены, схема БД, события,
+  SSO-контракт с MLM, риски и решения по открытым вопросам.
+- [docs/DEPLOY-RAILWAY.md](docs/DEPLOY-RAILWAY.md) — деплой.
+- [docs/TASK-01-auth-service.md](docs/TASK-01-auth-service.md), [docs/TASK-02-catalog-geo.md](docs/TASK-02-catalog-geo.md) — задания по модулям.

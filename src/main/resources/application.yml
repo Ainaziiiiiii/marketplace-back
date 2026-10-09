@@ -1,0 +1,167 @@
+server:
+  # PORT задаёт хостинг (Railway/Heroku), SERVER_PORT — локальный запуск
+  port: ${PORT:${SERVER_PORT:8080}}
+  # внутренняя сеть Railway работает по IPv6: SERVER_ADDRESS=::
+  address: ${SERVER_ADDRESS:0.0.0.0}
+  servlet:
+    # всё API (и actuator) — под /api, как раньше через api-gateway
+    context-path: /api
+
+spring:
+  application:
+    name: green-eco-mall
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
+  datasource:
+    # одна база; у каждого модуля своя схема (auth, catalog, orders, finance, courier, mlm, notification)
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/gem}
+    username: ${SPRING_DATASOURCE_USERNAME:gem}
+    password: ${SPRING_DATASOURCE_PASSWORD:gem}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate.jdbc.time_zone: UTC
+  flyway:
+    # миграции по схемам модулей запускает greenecomall.config.ModuleMigrations
+    enabled: false
+  task:
+    scheduling:
+      pool:
+        # outbox-relay семи модулей, таймеры заказов/курьеров/выплат/MLM — не в один поток
+        size: 4
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+gem:
+  security:
+    # домены фронтов через запятую; * — любой (токен ходит в заголовке, не в cookie)
+    cors-allowed-origins: ${GEM_CORS_ORIGINS:*}
+
+# ─── auth ──────────────────────────────────────────────────────────────────────
+auth:
+  jwt:
+    issuer: ${AUTH_JWT_ISSUER:green-eco-mall}
+    audience: ${AUTH_JWT_AUDIENCE:green-eco-mall}
+    access-token-ttl: 15m
+  refresh:
+    ttl: 30d
+  otp:
+    ttl: 5m
+    resend-interval: 60s
+    length: 6
+  mlm-sso:
+    shared-secret: ${MLM_SSO_SHARED_SECRET:local-dev-mlm-shared-secret-change-me}
+    issuer: ${MLM_SSO_ISSUER:mock-mlm}
+    audience: ${MLM_SSO_AUDIENCE:green-eco-mall}
+    clock-skew: 60s
+    algorithm: ${MLM_SSO_ALGORITHM:HS256}
+  outbox:
+    poll-interval: 2s
+  bootstrap-admin:
+    # первый вход в админку: задать обе переменные при первом запуске, потом сменить пароль
+    email: ${ADMIN_EMAIL:}
+    password: ${ADMIN_PASSWORD:}
+    super-admin: ${ADMIN_SUPER:true}
+
+# ─── catalog ───────────────────────────────────────────────────────────────────
+catalog:
+  photo:
+    storage-dir: ${CATALOG_MEDIA_DIR:data/media}
+    public-base-url: ${CATALOG_MEDIA_PUBLIC_URL:http://localhost:8080/api/catalog/media}
+    max-upload-mb: 10
+    ai:
+      # mock (dev: оригинал без изменений) | gemini
+      provider: ${PHOTO_AI_PROVIDER:mock}
+      enabled: ${PHOTO_AI_ENABLED:true}
+      gemini-api-key: ${GEMINI_API_KEY:}
+      gemini-model: ${GEMINI_IMAGE_MODEL:gemini-2.5-flash-image}
+      poll-interval: 15s
+  proofread:
+    # mock (только механическая чистка пробелов/знаков) | gemini (орфография и пунктуация)
+    provider: ${PROOFREAD_PROVIDER:mock}
+    gemini-api-key: ${GEMINI_API_KEY:}
+    gemini-model: ${GEMINI_TEXT_MODEL:gemini-2.5-flash}
+  outbox:
+    poll-interval: 2s
+
+# ─── order ─────────────────────────────────────────────────────────────────────
+order:
+  outbox-poll-interval: 2s
+  reservation-timeout: 15m
+  reservation-sweep-interval: 60s
+
+# ─── finance ───────────────────────────────────────────────────────────────────
+finance:
+  platform-owner-ref: platform.incoming
+  commission-owner-ref: platform.commission
+  default-currency: KGS
+  mock-acquiring:
+    # симулятор оплаты /api/mock-acquiring/pay/** — выключить на любом общедоступном стенде
+    simulator-enabled: ${FINANCE_MOCK_SIMULATOR_ENABLED:true}
+  acquiring:
+    # mock | finik — приём оплат клиентов на счёт платформы
+    provider: ${FINANCE_ACQUIRING_PROVIDER:mock}
+  payout:
+    # mock | finik — переводы магазинам (их часть заказа) сразу после оплаты; комиссия остаётся на счёте
+    provider: ${FINANCE_PAYOUT_PROVIDER:mock}
+    auto-enabled: ${FINANCE_AUTO_PAYOUT_ENABLED:true}
+    poll-interval: 30s
+  finik:
+    acquiring:
+      base-url: ${FINIK_BASE_URL:}
+      api-key: ${FINIK_API_KEY:}
+      account-id: ${FINIK_ACCOUNT_ID:}
+      private-key: ${FINIK_PRIVATE_KEY_CONTENT:}
+      # публичный адрес webhook — Finik подписывает именно его хост и путь
+      webhook-url: ${FINIK_WEBHOOK_URL:https://api.example.kg/api/webhooks/acquiring/finik}
+      redirect-url: ${FINIK_REDIRECT_URL:}
+    transfer:
+      base-url: ${FINIK_TRANSFER_BASE_URL:https://api.paymentsgateway.averspay.kg}
+      api-key: ${FINIK_TRANSFER_API_KEY:}
+      account-id: ${FINIK_TRANSFER_ACCOUNT_ID:}
+      user-id: ${FINIK_TRANSFER_USER_ID:}
+      private-key: ${FINIK_TRANSFER_PRIVATE_KEY_CONTENT:}
+  mock-webhook-secret: ${FINANCE_MOCK_WEBHOOK_SECRET:mock-secret}
+  outbox-poll-interval: 2s
+
+# ─── courier ───────────────────────────────────────────────────────────────────
+courier:
+  offer-ttl: 2m
+  redispatch-interval: 30s
+  delivery-fee-minor: ${COURIER_DELIVERY_FEE_MINOR:15000}
+  currency: KGS
+  outbox-poll-interval: 2s
+
+# ─── mlm ───────────────────────────────────────────────────────────────────────
+mlm:
+  # Во внешнем MLM-бэке уже есть дерево и начисления — локальные бонусы включать только по согласованию
+  local-bonuses-enabled: ${MLM_LOCAL_BONUSES_ENABLED:false}
+  reminder-days-before-deadline: 3,1
+  deadline-check-interval: 1h
+  outbox-poll-interval: 2s
+  sync:
+    # Пусто = обратная синхронизация выключена, сообщения копятся в mlm_sync_outbox.
+    # Локально: http://localhost:9100 (infra/mock-mlm)
+    base-url: ${MLM_BACKEND_BASE_URL:}
+    shared-secret: ${MLM_SYNC_SHARED_SECRET:local-dev-mlm-shared-secret-change-me}
+    max-attempts: 10
+    initial-backoff: 30s
+    poll-interval: 10s
+
+# ─── notification ──────────────────────────────────────────────────────────────
+notification:
+  default-locale: ru
+  default-channels: PUSH
+  outbox-poll-interval: 2s

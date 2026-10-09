@@ -1,37 +1,14 @@
-# Полный прогон: инфраструктура + все сервисы в контейнерах.
-# Образы собираются buildpack'ами:  ./mvnw -DskipTests spring-boot:build-image
-# Запуск:  docker compose -f infra/docker-compose.yml up -d
+# Полный прогон: инфраструктура + приложение в контейнере.
+# Запуск:  docker compose -f infra/docker-compose.yml up -d --build
+# API: http://localhost:8080/api/...
 
 name: gem
-
-x-service-env: &service-env
-  SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-  SPRING_DATASOURCE_USERNAME: gem
-  SPRING_DATASOURCE_PASSWORD: gem
-  SPRING_DATA_REDIS_HOST: redis
-  # Сервисы сами проверяют access-JWT по JWKS auth-service и служебный токен на /internal/**
-  GEM_JWT_JWK_SET_URI: http://auth-service:8081/oauth2/jwks
-  GEM_INTERNAL_TOKEN: local-dev-internal-token-change-me
-
-x-depends: &service-depends
-  postgres:
-    condition: service_healthy
-  kafka:
-    condition: service_started
 
 services:
   postgres:
     extends:
       file: docker-compose.infra.yml
       service: postgres
-  kafka:
-    extends:
-      file: docker-compose.infra.yml
-      service: kafka
-  redis:
-    extends:
-      file: docker-compose.infra.yml
-      service: redis
   mailhog:
     extends:
       file: docker-compose.infra.yml
@@ -41,93 +18,32 @@ services:
       file: docker-compose.infra.yml
       service: mock-mlm
 
-  api-gateway:
-    image: green-eco-mall/api-gateway:latest
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: green-eco-mall/app:latest
     environment:
-      SERVER_PORT: "8080"
-      GATEWAY_JWT_JWK_SET_URI: http://auth-service:8081/oauth2/jwks
-      GATEWAY_AUTH_URL: http://auth-service:8081
-      GATEWAY_CATALOG_URL: http://catalog-service:8082
-      GATEWAY_ORDER_URL: http://order-service:8083
-      GATEWAY_FINANCE_URL: http://finance-service:8084
-      GATEWAY_COURIER_URL: http://courier-service:8085
-      GATEWAY_MLM_URL: http://mlm-service:8086
-      GATEWAY_NOTIFICATION_URL: http://notification-service:8087
-    ports: ["8080:8080"]
-    depends_on: *service-depends
-
-  auth-service:
-    image: green-eco-mall/auth-service:latest
-    environment:
-      <<: *service-env
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/auth
+      # одна база gem, схемы модулей создаёт Flyway при старте
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/gem
+      SPRING_DATASOURCE_USERNAME: gem
+      SPRING_DATASOURCE_PASSWORD: gem
       # первый вход в админку; на проде задать свои значения и сменить пароль после входа
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@greenecomall.kg}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin12345}
-    ports: ["8081:8081"]
-    depends_on: *service-depends
-
-  catalog-service:
-    image: green-eco-mall/catalog-service:latest
-    environment:
-      <<: *service-env
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/catalog
-      ORDER_BASE_URL: http://order-service:8083
       CATALOG_MEDIA_DIR: /data/media
       # ИИ для фото и корректуры текста: mock без ключа; для реальной работы — gemini + GEMINI_API_KEY
       PHOTO_AI_PROVIDER: ${PHOTO_AI_PROVIDER:-mock}
       PROOFREAD_PROVIDER: ${PROOFREAD_PROVIDER:-mock}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-    volumes:
-      - catalog-media:/data/media
-    ports: ["8082:8082"]
-    depends_on: *service-depends
-
-  order-service:
-    image: green-eco-mall/order-service:latest
-    environment:
-      <<: *service-env
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/orders
-      CATALOG_BASE_URL: http://catalog-service:8082
-    ports: ["8083:8083"]
-    depends_on: *service-depends
-
-  finance-service:
-    image: green-eco-mall/finance-service:latest
-    environment:
-      <<: *service-env
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/finance
-      MLM_BASE_URL: http://mlm-service:8086
-    ports: ["8084:8084"]
-    depends_on: *service-depends
-
-  courier-service:
-    image: green-eco-mall/courier-service:latest
-    environment:
-      <<: *service-env
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/courier
-      ORDER_BASE_URL: http://order-service:8083
-      CATALOG_BASE_URL: http://catalog-service:8082
-    ports: ["8085:8085"]
-    depends_on: *service-depends
-
-  mlm-service:
-    image: green-eco-mall/mlm-service:latest
-    environment:
-      <<: *service-env
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/mlm
       MLM_BACKEND_BASE_URL: http://mock-mlm:9100
       MLM_SYNC_SHARED_SECRET: local-dev-mlm-shared-secret-change-me
-    ports: ["8086:8086"]
-    depends_on: *service-depends
-
-  notification-service:
-    image: green-eco-mall/notification-service:latest
-    environment:
-      <<: *service-env
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/notification
-    ports: ["8087:8087"]
-    depends_on: *service-depends
+    volumes:
+      - catalog-media:/data/media
+    ports: ["8080:8080"]
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   pgdata:
